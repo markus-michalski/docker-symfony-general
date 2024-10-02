@@ -8,7 +8,7 @@ CONTAINER_FIRST_STARTUP="CONTAINER_FIRST_STARTUP"
 if [ ! -e /$CONTAINER_FIRST_STARTUP ];
 then
     touch /$CONTAINER_FIRST_STARTUP
-    symfony new . --version="7.1.*" --webapp
+    symfony new . --version="7.1.*"
 fi
 
 
