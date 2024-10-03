@@ -11,7 +11,7 @@ then
     symfony new . --version="7.1.*"
 	composer config extra.symfony.allow-contrib true
 	composer require symfony/apache-pack
-	composer require debug
+	composer require debug --dev
 fi
 
 
