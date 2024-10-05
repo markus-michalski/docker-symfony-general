@@ -1,6 +1,9 @@
 FROM php:8.2-apache
+EXPOSE 80
+RUN echo "ServerName localhost" >> /etc/apache2/apache2.conf
+CMD ["/usr/sbin/apache2ctl", "-D", "FOREGROUND"]
 
-MAINTAINER mm@markus-michalski.net
+MAINTAINER info@markus-michalski.net
 
 # timezone / date
 RUN echo "Europe/Berlin" > /etc/timezone && dpkg-reconfigure -f noninteractive tzdata
