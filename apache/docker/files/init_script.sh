@@ -11,7 +11,14 @@ then
     symfony new . --version="7.1.*"
 	composer config extra.symfony.allow-contrib true
 	composer require symfony/apache-pack
-	composer require debug
+	composer require debug --dev
+	composer require symfony/orm-pack
+	composer require twig
+	composer require Symfony/maker-bundle --dev
+	composer require symfony/asset-mapper
+	composer require asset
+	composer require symfony/validator
+	composer require cs-fixer-shim
 fi
 
 
