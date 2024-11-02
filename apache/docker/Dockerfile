@@ -15,7 +15,7 @@ RUN echo "Europe/Berlin" > /etc/timezone && dpkg-reconfigure -f noninteractive t
 RUN apt-get update -y && \
   apt-get install -y --no-install-recommends \
   less vim wget zip unzip dos2unix rsync git mariadb-client libzip-dev ssl-cert sudo openssh-server \
-  libcurl4-openssl-dev libfreetype6 libjpeg62-turbo libpng-dev libjpeg-dev libxml2-dev libxpm4 nano libjpeg62 libxrender1 fontconfig libfreetype6 libpng16-16 xvfb && \
+  libcurl4-openssl-dev libfreetype6 libjpeg62-turbo libpng-dev libjpeg-dev libxml2-dev libxpm4 nano  && \
   apt-get clean && \
   apt-get autoremove -y && \
   rm -rf /var/lib/apt/lists/* && \
@@ -43,27 +43,6 @@ RUN apt-get update && apt-get install -y \
     && docker-php-ext-install mbstring
 RUN docker-php-ext-enable intl mbstring
 
-# Install wkhtmltopdf
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    gnupg \
-    ca-certificates \
-    curl \
-    libjpeg62-turbo \
-    xfonts-75dpi \
-    xfonts-base \
-    fontconfig \
-    xfonts-encodings \
-    && curl -fsSL https://github.com/wkhtmltopdf/packaging/releases/download/0.12.6.1-3/wkhtmltox_0.12.6.1-3.bookworm_amd64.deb -o wkhtmltox.deb \
-    && dpkg -i wkhtmltox.deb \
-    && apt-get -f install -y \
-    && rm -f wkhtmltox.deb \
-    && apt-get clean \
-    && apt-get autoremove -y \
-    && rm -rf /var/lib/apt/lists/*
-
-# Verify installation
-RUN wkhtmltopdf --version
-
 # Install and activate opcache JIT
 COPY ./files/php.ini /usr/local/etc/php/php.ini
 COPY ./files/opcache.ini /usr/local/etc/php/conf.d/opcache.ini
@@ -82,7 +61,7 @@ RUN apt-get update && apt-get install -y symfony-cli
 
 # GIT Config
 RUN git config --global --add safe.directory /var/www/html \
-  && git config --global user.email "info@markus-michalski.net" \ 
+  && git config --global user.email "info@markus-michalski.net" \
   && git config --global user.name "Markus Michalski"
 
 # prepare entrypoint.d pattern
