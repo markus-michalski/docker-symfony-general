@@ -5,6 +5,9 @@ CMD ["/usr/sbin/apache2ctl", "-D", "FOREGROUND"]
 
 MAINTAINER info@markus-michalski.net
 
+# Avoid interactive dialogs during installation
+ENV DEBIAN_FRONTEND=noninteractive
+
 # timezone / date
 RUN echo "Europe/Berlin" > /etc/timezone && dpkg-reconfigure -f noninteractive tzdata
 
@@ -12,12 +15,25 @@ RUN echo "Europe/Berlin" > /etc/timezone && dpkg-reconfigure -f noninteractive t
 RUN apt-get update -y && \
   apt-get install -y --no-install-recommends \
   less vim wget zip unzip dos2unix rsync git mariadb-client libzip-dev ssl-cert sudo openssh-server \
-  libcurl4-openssl-dev libfreetype6 libjpeg62-turbo libpng-dev libjpeg-dev libxml2-dev libxpm4 nano && \
+  libcurl4-openssl-dev libfreetype6 libjpeg62-turbo libpng-dev libjpeg-dev libxml2-dev libxpm4 nano libjpeg62 libxrender1 fontconfig libfreetype6 libpng16-16 xvfb libfreetype6-dev libwebp-dev && \
   apt-get clean && \
   apt-get autoremove -y && \
   rm -rf /var/lib/apt/lists/* && \
   echo "export TERM=xterm" >> /root/.bashrc
-  
+
+# Korrekte GD-Konfiguration mit allen benötigten Features
+RUN docker-php-ext-configure gd \
+    --with-freetype \
+    --with-jpeg \
+    --with-webp && \
+    docker-php-ext-install -j$(nproc) \
+    gd \
+    pdo_mysql \
+    zip \
+    bcmath \
+    soap \
+    mysqli
+
 #xdebug
 RUN pecl install xdebug && docker-php-ext-enable xdebug \
   && echo "xdebug.mode=debug" >> /usr/local/etc/php/conf.d/docker-php-ext-xdebug.ini \
@@ -27,10 +43,6 @@ RUN pecl install xdebug && docker-php-ext-enable xdebug \
   && echo "xdebug.client_host=host.docker.internal" >> /usr/local/etc/php/conf.d/docker-php-ext-xdebug.ini \
   && echo "xdebug.remote_handler=dbgp" >> /usr/local/etc/php/conf.d/docker-php-ext-xdebug.ini
 
-# install php extensions
-RUN docker-php-ext-configure gd --with-jpeg=/usr/local/ && \
-  docker-php-ext-install -j$(nproc) zip bcmath soap pdo_mysql mysqli gd
-  
 # Install symfony recommeded extensions
 RUN apt-get update && apt-get install -y \
     libicu-dev \
@@ -39,6 +51,27 @@ RUN apt-get update && apt-get install -y \
     && docker-php-ext-install intl \
     && docker-php-ext-install mbstring
 RUN docker-php-ext-enable intl mbstring
+
+# Install wkhtmltopdf
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gnupg \
+    ca-certificates \
+    curl \
+    libjpeg62-turbo \
+    xfonts-75dpi \
+    xfonts-base \
+    fontconfig \
+    xfonts-encodings \
+    && curl -fsSL https://github.com/wkhtmltopdf/packaging/releases/download/0.12.6.1-3/wkhtmltox_0.12.6.1-3.bookworm_amd64.deb -o wkhtmltox.deb \
+    && dpkg -i wkhtmltox.deb \
+    && apt-get -f install -y \
+    && rm -f wkhtmltox.deb \
+    && apt-get clean \
+    && apt-get autoremove -y \
+    && rm -rf /var/lib/apt/lists/*
+
+# Verify installation
+RUN wkhtmltopdf --version
 
 # Install and activate opcache JIT
 COPY ./files/php.ini /usr/local/etc/php/php.ini
