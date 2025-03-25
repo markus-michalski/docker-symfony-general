@@ -54,24 +54,24 @@ RUN pecl install xdebug \
     && echo "xdebug.client_host=host.docker.internal" >> /usr/local/etc/php/conf.d/docker-php-ext-xdebug.ini \
     && echo "xdebug.remote_handler=dbgp" >> /usr/local/etc/php/conf.d/docker-php-ext-xdebug.ini
 
-# Install wkhtmltopdf and required dependencies
+# Install wkhtmltopdf
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    wkhtmltopdf \
-    xvfb \
-    xauth \
+    wget \
+    libxrender1 \
+    libfontconfig1 \
+    libjpeg62-turbo \
+    fontconfig \
+    && wget --retry-connrefused --waitretry=1 --read-timeout=20 --timeout=15 --tries=5 \
+       https://github.com/wkhtmltopdf/packaging/releases/download/0.12.6.1-3/wkhtmltox_0.12.6.1-3.bookworm_amd64.deb -O wkhtmltox.deb \
+    && dpkg -i wkhtmltox.deb || true \
+    && apt-get -f install -y \
+    && dpkg -i wkhtmltox.deb \
+    && which wkhtmltopdf \
+    && /usr/local/bin/wkhtmltopdf --version \
+    && rm -f wkhtmltox.deb \
     && apt-get clean \
     && apt-get autoremove -y \
     && rm -rf /var/lib/apt/lists/*
-
-# Create a wrapper script for wkhtmltopdf with xvfb
-RUN echo '#!/bin/bash\nxvfb-run -a --server-args="-screen 0, 1024x768x24" /usr/bin/wkhtmltopdf "$@"' > /usr/local/bin/wkhtmltopdf.sh \
-    && chmod +x /usr/local/bin/wkhtmltopdf.sh \
-    && ln -sf /usr/local/bin/wkhtmltopdf.sh /usr/local/bin/wkhtmltopdf
-
-# Test wkhtmltopdf with an actual PDF generation to verify installation
-RUN echo "<html><body>Test</body></html>" > /tmp/test.html \
-    && wkhtmltopdf /tmp/test.html /tmp/test.pdf || echo "Verification will be done at runtime" \
-    && rm -f /tmp/test.html /tmp/test.pdf
 
 # Install and activate opcache JIT
 COPY ./files/php.ini /usr/local/etc/php/php.ini
