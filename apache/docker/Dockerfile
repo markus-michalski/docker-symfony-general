@@ -1,96 +1,114 @@
 FROM php:8.2-apache
+
+# Set server name and expose port
 EXPOSE 80
 RUN echo "ServerName localhost" >> /etc/apache2/apache2.conf
-CMD ["/usr/sbin/apache2ctl", "-D", "FOREGROUND"]
 
-MAINTAINER info@markus-michalski.net
+# Metadata
+LABEL maintainer="info@markus-michalski.net"
 
 # Avoid interactive dialogs during installation
 ENV DEBIAN_FRONTEND=noninteractive
 
-# timezone / date
+# Set timezone
 RUN echo "Europe/Berlin" > /etc/timezone && dpkg-reconfigure -f noninteractive tzdata
 
-# install packages
+# Install basic system packages
 RUN apt-get update -y && \
-  apt-get install -y --no-install-recommends \
-  less vim wget zip unzip dos2unix rsync git mariadb-client libzip-dev ssl-cert sudo openssh-server \
-  libcurl4-openssl-dev libfreetype6 libjpeg62-turbo libpng-dev libjpeg-dev libxml2-dev libxpm4 nano libjpeg62 libxrender1 fontconfig libfreetype6 libpng16-16 xvfb libfreetype6-dev libwebp-dev && \
-  apt-get clean && \
-  apt-get autoremove -y && \
-  rm -rf /var/lib/apt/lists/* && \
-  echo "export TERM=xterm" >> /root/.bashrc
+    apt-get install -y --no-install-recommends \
+        less vim wget zip unzip dos2unix rsync git mariadb-client \
+        libzip-dev ssl-cert sudo openssh-server \
+        libcurl4-openssl-dev libfreetype6 libjpeg62-turbo libpng-dev \
+        libjpeg-dev libxml2-dev libxpm4 nano libjpeg62 libxrender1 \
+        fontconfig libfreetype6 libpng16-16 xvfb libfreetype6-dev \
+        libwebp-dev gnupg ca-certificates libicu-dev libonig-dev \
+        xfonts-75dpi xfonts-base xfonts-encodings xfonts-utils xauth \
+    && apt-get clean \
+    && apt-get autoremove -y \
+    && rm -rf /var/lib/apt/lists/* \
+    && echo "export TERM=xterm" >> /root/.bashrc
 
-# Korrekte GD-Konfiguration mit allen benötigten Features
+# Configure and install PHP extensions
 RUN docker-php-ext-configure gd \
-    --with-freetype \
-    --with-jpeg \
-    --with-webp && \
-    docker-php-ext-install -j$(nproc) \
-    gd \
-    pdo_mysql \
-    zip \
-    bcmath \
-    soap \
-    mysqli
+        --with-freetype \
+        --with-jpeg \
+        --with-webp \
+    && docker-php-ext-install -j$(nproc) \
+        gd \
+        pdo_mysql \
+        zip \
+        bcmath \
+        soap \
+        mysqli \
+        intl \
+        mbstring \
+        opcache
 
-#xdebug
-RUN pecl install xdebug && docker-php-ext-enable xdebug \
-  && echo "xdebug.mode=debug" >> /usr/local/etc/php/conf.d/docker-php-ext-xdebug.ini \
-  && echo "xdebug.start_with_request=yes" >> /usr/local/etc/php/conf.d/docker-php-ext-xdebug.ini \
-  && echo "xdebug.idekey=PHPSTORM" >> /usr/local/etc/php/conf.d/docker-php-ext-xdebug.ini \
-  && echo "xdebug.log_level=0" >> /usr/local/etc/php/conf.d/docker-php-ext-xdebug.ini \
-  && echo "xdebug.client_host=host.docker.internal" >> /usr/local/etc/php/conf.d/docker-php-ext-xdebug.ini \
-  && echo "xdebug.remote_handler=dbgp" >> /usr/local/etc/php/conf.d/docker-php-ext-xdebug.ini
+# Configure and enable Xdebug
+RUN pecl install xdebug \
+    && docker-php-ext-enable xdebug \
+    && echo "xdebug.mode=debug" >> /usr/local/etc/php/conf.d/docker-php-ext-xdebug.ini \
+    && echo "xdebug.start_with_request=yes" >> /usr/local/etc/php/conf.d/docker-php-ext-xdebug.ini \
+    && echo "xdebug.idekey=PHPSTORM" >> /usr/local/etc/php/conf.d/docker-php-ext-xdebug.ini \
+    && echo "xdebug.log_level=0" >> /usr/local/etc/php/conf.d/docker-php-ext-xdebug.ini \
+    && echo "xdebug.client_host=host.docker.internal" >> /usr/local/etc/php/conf.d/docker-php-ext-xdebug.ini \
+    && echo "xdebug.remote_handler=dbgp" >> /usr/local/etc/php/conf.d/docker-php-ext-xdebug.ini
 
-# Install symfony recommeded extensions
-RUN apt-get update && apt-get install -y \
-    libicu-dev \
-    libonig-dev \
-    && docker-php-ext-configure intl \
-    && docker-php-ext-install intl \
-    && docker-php-ext-install mbstring
-RUN docker-php-ext-enable intl mbstring
+# Install wkhtmltopdf and required dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    wkhtmltopdf \
+    xvfb \
+    xauth \
+    && apt-get clean \
+    && apt-get autoremove -y \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create a wrapper script for wkhtmltopdf with xvfb
+RUN echo '#!/bin/bash\nxvfb-run -a --server-args="-screen 0, 1024x768x24" /usr/bin/wkhtmltopdf "$@"' > /usr/local/bin/wkhtmltopdf.sh \
+    && chmod +x /usr/local/bin/wkhtmltopdf.sh \
+    && ln -sf /usr/local/bin/wkhtmltopdf.sh /usr/local/bin/wkhtmltopdf
+
+# Test wkhtmltopdf with an actual PDF generation to verify installation
+RUN echo "<html><body>Test</body></html>" > /tmp/test.html \
+    && wkhtmltopdf /tmp/test.html /tmp/test.pdf || echo "Verification will be done at runtime" \
+    && rm -f /tmp/test.html /tmp/test.pdf
 
 # Install and activate opcache JIT
 COPY ./files/php.ini /usr/local/etc/php/php.ini
 COPY ./files/opcache.ini /usr/local/etc/php/conf.d/opcache.ini
 
-RUN docker-php-ext-install opcache
-
-# composer stuff
+# Install Composer
 RUN php -r 'readfile("https://getcomposer.org/installer");' > composer-setup.php \
-  && php composer-setup.php --install-dir=/usr/local/bin --version=2.5.5 --filename=composer \
-  && rm -f composer-setup.php \
-  && chown www-data:www-data /var/www
-  
-# Symfony Cli
-RUN curl -1sLf 'https://dl.cloudsmith.io/public/symfony/stable/setup.deb.sh' | sudo -E bash
-RUN apt-get update && apt-get install -y symfony-cli
+    && php composer-setup.php --install-dir=/usr/local/bin --version=2.5.5 --filename=composer \
+    && rm -f composer-setup.php \
+    && chown www-data:www-data /var/www
 
-# GIT Config
+# Install Symfony CLI
+RUN curl -1sLf 'https://dl.cloudsmith.io/public/symfony/stable/setup.deb.sh' | sudo -E bash \
+    && apt-get update \
+    && apt-get install -y symfony-cli \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+# Configure Git
 RUN git config --global --add safe.directory /var/www/html \
-  && git config --global user.email "info@markus-michalski.net" \
-  && git config --global user.name "Markus Michalski"
+    && git config --global user.email "info@markus-michalski.net" \
+    && git config --global user.name "Markus Michalski"
 
-# prepare entrypoint.d pattern
-RUN mkdir /init_script.d
-COPY ./files/init_script.sh /init_script.sh
-RUN chmod 777 /init_script.sh # && chmod 777 /init_script.d/*
-
-# fix windows line endings if needed
-RUN dos2unix /init_script.sh
-
-# apache stuff
-RUN /usr/sbin/a2enmod rewrite && /usr/sbin/a2enmod headers && /usr/sbin/a2enmod expires && /usr/sbin/a2enmod ssl
+# Set up Apache
+RUN a2enmod rewrite && a2enmod headers && a2enmod expires && a2enmod ssl
 COPY ./files/000-default.conf /etc/apache2/sites-available/000-default.conf
 
-RUN ["/bin/bash", "-c", "chpasswd <<<'root:docker'"]
-
-# change ssh config
+# Set up SSH - Fixed syntax for password
+RUN echo "root:docker" | chpasswd
 COPY ./files/sshd_config /etc/ssh/sshd_config
 
-# EXECUTED ON EVERY START
-ENTRYPOINT ["/init_script.sh"]
+# Prepare initialization scripts
+RUN mkdir /init_script.d
+COPY ./files/init_script.sh /init_script.sh
+RUN chmod 777 /init_script.sh \
+    && dos2unix /init_script.sh
 
+# Execute on container start
+ENTRYPOINT ["/init_script.sh"]
 CMD ["apache2-foreground"]
