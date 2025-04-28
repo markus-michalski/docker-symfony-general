@@ -17,23 +17,18 @@ RUN echo "Europe/Berlin" > /etc/timezone && dpkg-reconfigure -f noninteractive t
 RUN apt-get update -y && \
     apt-get install -y --no-install-recommends \
         less vim wget zip unzip dos2unix rsync git mariadb-client \
-        libzip-dev ssl-cert sudo openssh-server \
+        libzip-dev ssl-cert sudo openssh-server libxslt-dev \
         libcurl4-openssl-dev libfreetype6 libjpeg62-turbo libpng-dev \
         libjpeg-dev libxml2-dev libxpm4 nano libjpeg62 libxrender1 \
         fontconfig libfreetype6 libpng16-16 xvfb libfreetype6-dev \
         libwebp-dev gnupg ca-certificates libicu-dev libonig-dev \
         xfonts-75dpi xfonts-base xfonts-encodings xfonts-utils xauth \
-    && apt-get clean \
-    && apt-get autoremove -y \
-    && rm -rf /var/lib/apt/lists/* \
-    && echo "export TERM=xterm" >> /root/.bashrc
-
-# Configure and install PHP extensions
-RUN docker-php-ext-configure gd \
+        poppler-utils \
+	&& docker-php-ext-configure gd \
         --with-freetype \
         --with-jpeg \
         --with-webp \
-    && docker-php-ext-install -j$(nproc) \
+	&& docker-php-ext-install -j$(nproc) \
         gd \
         pdo_mysql \
         zip \
@@ -41,8 +36,14 @@ RUN docker-php-ext-configure gd \
         soap \
         mysqli \
         intl \
+		xml \
+		xsl \
         mbstring \
-        opcache
+        opcache \
+    && apt-get clean \
+    && apt-get autoremove -y \
+    && rm -rf /var/lib/apt/lists/* \
+    && echo "export TERM=xterm" >> /root/.bashrc
 
 # Configure and enable Xdebug
 RUN pecl install xdebug \
